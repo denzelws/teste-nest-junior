@@ -18,14 +18,19 @@ export class ProductsService {
     private productRepo: Repository<Product>,
   ) {}
 
-  async create(dto: CreateProductDto): Promise<Product> {
+  async create(dto: CreateProductDto): Promise<ProductResponseDto> {
     const existing = await this.productRepo.findOneBy({ sku: dto.sku });
     if (existing) {
       throw new BadRequestException('SKU já cadastrado');
     }
 
     const product = this.productRepo.create(dto);
-    return this.productRepo.save(product);
+    const saved = await this.productRepo.save(product);
+
+    return {
+      ...saved,
+      missingLetter: this.getMissingLetter(saved.name),
+    };
   }
 
   async findAll(): Promise<ProductResponseDto[]> {
