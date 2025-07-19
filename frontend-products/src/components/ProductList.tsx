@@ -1,30 +1,52 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import { FiTrash2, FiEdit3 } from "react-icons/fi";
+
 import {
   Box,
-  Heading,
-  Text,
-  Grid,
-  VStack,
-  Spinner,
   Button,
   Flex,
+  Grid,
+  Heading,
+  Spinner,
+  Text,
+  VStack,
 } from "@chakra-ui/react";
+import axios from "axios";
+import type { Product } from "../types";
+import EditProductModal from "./EditProductModal";
 
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  sku: string;
-  missingLetter: string;
+interface ProductListProps {
+  products: Product[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
 }
 
 const PAGE_SIZE = 6;
 
-export default function ProductList() {
-  const [products, setProducts] = useState<Product[]>([]);
+export default function ProductList({
+  products,
+  setProducts,
+}: ProductListProps) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const handleDelete = async (id: number) => {
+    try {
+      await axios.delete(`http://localhost:3000/products/${id}`);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (error) {
+      console.error("Erro ao deletar produto:", error);
+    }
+  };
+
+  const handleEdit = (product: Product) => {
+    setSelectedProduct(product);
+  };
+
+  const handleProductUpdated = (updated: Product) => {
+    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setSelectedProduct(null);
+  };
 
   useEffect(() => {
     axios
@@ -74,6 +96,22 @@ export default function ProductList() {
                     Letra ausente: {product.missingLetter}
                   </Text>
                 </VStack>
+                <Flex gap={2} mt="20px">
+                  <Button
+                    size="xs"
+                    backgroundColor="blue.700"
+                    onClick={() => handleEdit(product)}
+                  >
+                    <FiEdit3 />
+                  </Button>
+                  <Button
+                    size="xs"
+                    backgroundColor="red"
+                    onClick={() => handleDelete(product.id)}
+                  >
+                    <FiTrash2 />
+                  </Button>
+                </Flex>
               </Box>
             ))}
           </Grid>
@@ -97,6 +135,14 @@ export default function ProductList() {
             </Button>
           </Flex>
         </>
+      )}
+
+      {selectedProduct && (
+        <EditProductModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onProductUpdated={handleProductUpdated}
+        />
       )}
     </Box>
   );
