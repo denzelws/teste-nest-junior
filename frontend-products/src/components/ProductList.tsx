@@ -43,8 +43,24 @@ export default function ProductList({
     setSelectedProduct(product);
   };
 
+  function getMissingLetter(name: string): string {
+  const normalized = name.toLowerCase().replace(/[^a-z]/g, '');
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+  for (const char of alphabet) {
+    if (!normalized.includes(char)) return char;
+  }
+  return '_';
+}
+
   const handleProductUpdated = (updated: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  const missingLetter = getMissingLetter(updated.name);
+
+  const updatedProductWithLetter = { ...updated, missingLetter };
+
+    setProducts((prev) =>
+    prev.map((p) => (p.id === updated.id ? updatedProductWithLetter : p))
+  );
+
     setSelectedProduct(null);
   };
 
