@@ -4,6 +4,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
@@ -11,33 +13,34 @@ import { ProductResponseDto } from './dto/product-response.dto';
 
 @Injectable()
 export class ProductsService {
-  private products: Product[] = [];
-  private nextId = 1;
+  constructor(
+    @InjectRepository(Product)
+    private productRepo: Repository<Product>,
+  ) {}
 
-  create(dto: CreateProductDto): Product {
-    const skuExists = this.products.some((p) => p.sku === dto.sku);
-    if (skuExists) throw new BadRequestException('SKU já cadastrado');
+  async create(dto: CreateProductDto): Promise<Product> {
+    const existing = await this.productRepo.findOneBy({ sku: dto.sku });
+    if (existing) {
+      throw new BadRequestException('SKU já cadastrado');
+    }
 
-    const newProduct: Product = {
-      id: this.nextId++,
-      ...dto,
-    };
-
-    this.products.push(newProduct);
-    return newProduct;
+    const product = this.productRepo.create(dto);
+    return this.productRepo.save(product);
   }
 
-  findAll(): ProductResponseDto[] {
-    return this.products
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((product) => ({
-        ...product,
-        missingLetter: this.getMissingLetter(product.name),
-      }));
+  async findAll(): Promise<ProductResponseDto[]> {
+    const products = await this.productRepo.find({
+      order: { name: 'ASC' },
+    });
+
+    return products.map((p) => ({
+      ...p,
+      missingLetter: this.getMissingLetter(p.name),
+    }));
   }
 
-  findOne(id: number): ProductResponseDto {
-    const product = this.products.find((p) => p.id === id);
+  async findOne(id: number): Promise<ProductResponseDto> {
+    const product = await this.productRepo.findOneBy({ id });
     if (!product) throw new NotFoundException('Produto não encontrado');
 
     return {
@@ -46,22 +49,24 @@ export class ProductsService {
     };
   }
 
-  update(id: number, dto: UpdateProductDto): Product {
-    const product = this.findOne(id);
+  async update(id: number, dto: UpdateProductDto): Promise<Product> {
+    const product = await this.productRepo.findOneBy({ id });
+    if (!product) throw new NotFoundException('Produto não encontrado');
+
     Object.assign(product, dto);
-    return product;
+    return this.productRepo.save(product);
   }
 
-  remove(id: number): void {
-    const index = this.products.findIndex((p) => p.id === id);
-    if (index === -1) throw new NotFoundException('Produto não encontrado');
-    this.products.splice(index, 1);
+  async remove(id: number): Promise<void> {
+    const result = await this.productRepo.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException('Produto não encontrado');
+    }
   }
 
   private getMissingLetter(name: string): string {
     const normalized = name.toLowerCase().replace(/[^a-z]/g, '');
     const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-
     for (const char of alphabet) {
       if (!normalized.includes(char)) return char;
     }
